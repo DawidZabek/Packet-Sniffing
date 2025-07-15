@@ -64,15 +64,16 @@ class PacketSnifferApp:
         self.chart_button = tk.Button(button_frame, text="Show Chart", command=self.open_chart_window)
         self.chart_button.pack(side=tk.LEFT, padx=10)
 
-        self.tree = ttk.Treeview(root, columns=("Source", "Destination", "Protocol"))
+        self.tree = ttk.Treeview(root, columns=("Source", "Destination", "Protocol", "Port"))
         self.tree.heading("#0", text="ID")
         self.tree.heading("Source", text="Source")
         self.tree.heading("Destination", text="Destination")
         self.tree.heading("Protocol", text="Protocol")
+        self.tree.heading("Port", text="Port")
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<Double-1>", self.show_packet_details)
 
-    proto_map = {1: "ICMP", 6: "TCP", 17: "UDP"}
+        proto_map = {1: "ICMP", 6: "TCP", 17: "UDP"}
 
     def packet_callback(self, packet):
         if not packet.haslayer("IP"):
@@ -80,6 +81,7 @@ class PacketSnifferApp:
 
         ip_layer = packet["IP"]
         proto_label = "Other"
+        port = ""
         is_tls = is_http = is_dns = False
 
         if packet.haslayer("TCP"):
@@ -129,7 +131,8 @@ class PacketSnifferApp:
         self.packet_count += 1
         self.packets.append(packet)
         self.tree.insert("", "end", text=str(self.packet_count),
-                        values=(ip_layer.src, ip_layer.dst, proto_label))
+                        values=(ip_layer.src, ip_layer.dst, proto_label, f"{sport}->{dport}" if 'sport' in locals() and 'dport' in locals() else ""))
+
 
 
 
