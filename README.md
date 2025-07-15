@@ -3,7 +3,7 @@
 A real-time desktop packet sniffer and analyzer built with Python, Scapy, and Tkinter.  
 Monitor network traffic by protocol, view packet details, and visualize activity live with charts.
 
-![Screenshot](./screen.png)
+![Screenshot](./screen1.png)
 
 ---
 
