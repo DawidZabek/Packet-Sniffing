@@ -12,7 +12,8 @@ class PacketSnifferApp:
         self.running = False
         self.packet_count = 0
         self.packets = []
-        self.protocol_counts = {"TCP": 0, "UDP": 0, "ICMP": 0, "Other": 0}
+        self.protocol_counts = {"TCP": 0, "UDP": 0, "ICMP": 0, "Other": 0,
+                        "TLS": 0, "HTTP": 0, "DNS": 0}
         self.chart_updating = False
 
         filter_frame = tk.Frame(root)
@@ -20,7 +21,12 @@ class PacketSnifferApp:
 
         tk.Label(filter_frame, text="Protocol:").pack(side=tk.LEFT)
         self.protocol_var = tk.StringVar(value="ALL")
-        self.protocol_menu = ttk.Combobox(filter_frame, textvariable=self.protocol_var, values=["ALL", "TCP", "UDP", "ICMP"], width=8)
+        self.protocol_menu = ttk.Combobox(
+        filter_frame,
+        textvariable=self.protocol_var,
+        values=["ALL", "TCP", "UDP", "ICMP", "TLS", "HTTP", "DNS"],
+        width=8
+        )
         self.protocol_menu.pack(side=tk.LEFT, padx=5)
 
         tk.Label(filter_frame, text="Filter IP:").pack(side=tk.LEFT)
@@ -69,26 +75,74 @@ class PacketSnifferApp:
     proto_map = {1: "ICMP", 6: "TCP", 17: "UDP"}
 
     def packet_callback(self, packet):
-        if packet.haslayer("IP"):
-            ip_layer = packet["IP"]
-            proto_num = ip_layer.proto
-            proto_name = self.proto_map.get(proto_num, "Other")
-            ip_filter = self.ip_filter_entry.get()
-            if ip_filter and ip_filter not in (ip_layer.src, ip_layer.dst):
-                return
-            self.packet_count += 1
-            self.packets.append(packet)
-            self.protocol_counts[proto_name] = self.protocol_counts.get(proto_name, 0) + 1
+        if not packet.haslayer("IP"):
+            return
 
-            self.tree.insert("", "end", text=str(self.packet_count),
-                         values=(ip_layer.src, ip_layer.dst, proto_name))
+        ip_layer = packet["IP"]
+        proto_label = "Other"
+        is_tls = is_http = is_dns = False
+
+        if packet.haslayer("TCP"):
+            sport = packet["TCP"].sport
+            dport = packet["TCP"].dport
+
+            proto_label = "TCP"
+
+            if 443 in (sport, dport):
+                is_tls = True
+            elif 80 in (sport, dport) or 8080 in (sport, dport):
+                is_http = True
+
+        elif packet.haslayer("UDP"):
+            sport = packet["UDP"].sport
+            dport = packet["UDP"].dport
+            proto_label = "UDP"
+
+            if 53 in (sport, dport):
+                is_dns = True
+
+        elif packet.haslayer("ICMP"):
+            proto_label = "ICMP"
+
+        # Protocol filter logic
+        selected_filter = self.protocol_var.get()
+        if selected_filter != "ALL":
+            if selected_filter == "TCP" and proto_label != "TCP":
+                return
+            elif selected_filter == "UDP" and proto_label != "UDP":
+                return
+            elif selected_filter == "ICMP" and proto_label != "ICMP":
+                return
+            elif selected_filter == "TLS" and not is_tls:
+                return
+            elif selected_filter == "HTTP" and not is_http:
+                return
+            elif selected_filter == "DNS" and not is_dns:
+                return
+
+        # IP filter
+        ip_filter = self.ip_filter_entry.get()
+        if ip_filter and ip_filter not in (ip_layer.src, ip_layer.dst):
+            return
+
+        self.protocol_counts[proto_label] = self.protocol_counts.get(proto_label, 0) + 1
+        self.packet_count += 1
+        self.packets.append(packet)
+        self.tree.insert("", "end", text=str(self.packet_count),
+                        values=(ip_layer.src, ip_layer.dst, proto_label))
+
 
 
     def get_bpf_filter(self):
         proto = self.protocol_var.get()
-        if proto == "ALL":
-            return ""
-        return proto.lower()
+        if proto in ["TCP", "TLS", "HTTP"]:
+            return "tcp"
+        elif proto in ["UDP", "DNS"]:
+            return "udp"
+        elif proto == "ICMP":
+            return "icmp"
+        return ""
+
 
     def sniff_packets(self):
         selected_label = self.iface_var.get()
