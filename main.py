@@ -82,32 +82,28 @@ class PacketSnifferApp:
         ip_layer = packet["IP"]
         proto_label = "Other"
         port = ""
-        is_tls = is_http = is_dns = False
+        sport = dport = None
 
         if packet.haslayer("TCP"):
+            proto_label = "TCP"
             sport = packet["TCP"].sport
             dport = packet["TCP"].dport
-
-            proto_label = "TCP"
-
-            if 443 in (sport, dport):
-                is_tls = True
-            elif 80 in (sport, dport) or 8080 in (sport, dport):
-                is_http = True
+            port = dport if ip_layer.dst == packet["IP"].dst else sport
 
         elif packet.haslayer("UDP"):
+            proto_label = "UDP"
             sport = packet["UDP"].sport
             dport = packet["UDP"].dport
-            proto_label = "UDP"
-
-            if 53 in (sport, dport):
-                is_dns = True
+            port = dport if ip_layer.dst == packet["IP"].dst else sport
 
         elif packet.haslayer("ICMP"):
             proto_label = "ICMP"
-
-        # Protocol filter logic
         selected_filter = self.protocol_var.get()
+
+        ip_filter = self.ip_filter_entry.get()
+        if ip_filter and ip_filter not in (ip_layer.src, ip_layer.dst):
+            return
+
         if selected_filter != "ALL":
             if selected_filter == "TCP" and proto_label != "TCP":
                 return
@@ -115,23 +111,22 @@ class PacketSnifferApp:
                 return
             elif selected_filter == "ICMP" and proto_label != "ICMP":
                 return
-            elif selected_filter == "TLS" and not is_tls:
-                return
-            elif selected_filter == "HTTP" and not is_http:
-                return
-            elif selected_filter == "DNS" and not is_dns:
-                return
-
-        # IP filter
-        ip_filter = self.ip_filter_entry.get()
-        if ip_filter and ip_filter not in (ip_layer.src, ip_layer.dst):
-            return
+            elif selected_filter == "TLS":
+                if proto_label != "TCP" or 443 not in (sport, dport):
+                    return
+            elif selected_filter == "HTTP":
+                if proto_label != "TCP" or not (80 in (sport, dport) or 8080 in (sport, dport)):
+                    return
+            elif selected_filter == "DNS":
+                if proto_label != "UDP" or 53 not in (sport, dport):
+                    return
 
         self.protocol_counts[proto_label] = self.protocol_counts.get(proto_label, 0) + 1
         self.packet_count += 1
         self.packets.append(packet)
         self.tree.insert("", "end", text=str(self.packet_count),
-                        values=(ip_layer.src, ip_layer.dst, proto_label, f"{sport}->{dport}" if 'sport' in locals() and 'dport' in locals() else ""))
+                        values=(ip_layer.src, ip_layer.dst, proto_label, port))
+
 
 
 
