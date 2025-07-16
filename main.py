@@ -64,13 +64,21 @@ class PacketSnifferApp:
         self.chart_button = tk.Button(button_frame, text="Show Chart", command=self.open_chart_window)
         self.chart_button.pack(side=tk.LEFT, padx=10)
 
-        self.tree = ttk.Treeview(root, columns=("Source", "Destination", "Protocol", "Port"))
+        tree_frame = tk.Frame(root)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.tree = ttk.Treeview(tree_frame, columns=("Source", "Destination", "Protocol", "Port"))
         self.tree.heading("#0", text="ID")
         self.tree.heading("Source", text="Source")
         self.tree.heading("Destination", text="Destination")
         self.tree.heading("Protocol", text="Protocol")
         self.tree.heading("Port", text="Port")
-        self.tree.pack(fill=tk.BOTH, expand=True)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+
         self.tree.bind("<Double-1>", self.show_packet_details)
 
         proto_map = {1: "ICMP", 6: "TCP", 17: "UDP"}
